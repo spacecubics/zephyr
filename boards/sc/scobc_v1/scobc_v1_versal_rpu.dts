@@ -17,6 +17,12 @@
 		zephyr,shell-uart = &uart1;
 		zephyr,ocm = &ocm;
 	};
+
+	sdhci_ref_clk: sdhci-ref-clk {
+		compatible = "fixed-clock";
+		clock-frequency = <200000000>;
+		#clock-cells = <0>;
+	};
 };
 
 &uart1 {
@@ -28,4 +34,14 @@
 &ttc0 {
 	status = "okay";
 	clock-frequency = <DT_FREQ_M(150)>;
+};
+
+&sdhci0 {
+	status = "okay";
+	clocks = <&sdhci_ref_clk>;
+};
+
+&sdhci1 {
+	status = "okay";
+	clocks = <&sdhci_ref_clk>;
 };
