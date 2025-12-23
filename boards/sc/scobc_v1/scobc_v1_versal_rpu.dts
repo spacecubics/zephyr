@@ -25,6 +25,10 @@
 	};
 };
 
+&ocm {
+	status = "okay";
+};
+
 &uart1 {
 	status = "okay";
 	current-speed = <115200>;
