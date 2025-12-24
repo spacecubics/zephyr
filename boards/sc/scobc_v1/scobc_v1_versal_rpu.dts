@@ -45,6 +45,14 @@
 	clocks = <&sdhci_ref_clk>;
 };
 
+&lpd_gpio {
+	status = "okay";
+};
+
+&pmc_gpio {
+	status = "okay";
+};
+
 &sdhci1 {
 	status = "okay";
 	clocks = <&sdhci_ref_clk>;
