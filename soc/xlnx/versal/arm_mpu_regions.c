@@ -11,6 +11,17 @@
 extern const uint32_t __rom_region_start;
 extern const uint32_t __rom_region_mpu_size_bits;
 
+#define XLNX_VERSAL_OCM_BASE 0xFFFC0000ULL
+#define XLNX_VERSAL_OCM_SIZE 0x20000ULL
+#define XLNX_VERSAL_OCM_END \
+	(XLNX_VERSAL_OCM_BASE + XLNX_VERSAL_OCM_SIZE)
+
+#define XLNX_VERSAL_SRAM_END \
+	(CONFIG_SRAM_BASE_ADDRESS + (CONFIG_SRAM_SIZE * 1024ULL))
+
+#define XLNX_VERSAL_SRAM_IS_OCM \
+	((CONFIG_SRAM_BASE_ADDRESS >= XLNX_VERSAL_OCM_BASE) && \
+	 (XLNX_VERSAL_SRAM_END <= XLNX_VERSAL_OCM_END))
 /*
  * MPU configuration for AMD Versal RPU (Cortex-R5F)
  *
@@ -85,7 +96,9 @@ extern const uint32_t __rom_region_mpu_size_bits;
 #elif (DDR_END_ADDRESS <= 0x80000000)    /* 2GB */
 #define MEMORY_REGION_SIZE REGION_2G
 #else
+#if !XLNX_VERSAL_SRAM_IS_OCM
 #warning "DDR size exceeds 2GB - limiting MPU region to 2GB."
+#endif
 #define MEMORY_REGION_SIZE REGION_2G
 #endif
 
@@ -173,7 +186,7 @@ static const struct arm_mpu_region mpu_regions[] = {
 		{.rasr = P_RO_U_NA_Msk |
 			 NORMAL_OUTER_INNER_NON_CACHEABLE_NON_SHAREABLE}),
 
-#if (CONFIG_SRAM_BASE_ADDRESS > 0x80000)
+#if (CONFIG_SRAM_BASE_ADDRESS > 0x80000) && !XLNX_VERSAL_SRAM_IS_OCM
 	/* Region 5: Separate DDR region for non-contiguous memory layouts */
 	MPU_REGION_ENTRY(
 		"ddr",
