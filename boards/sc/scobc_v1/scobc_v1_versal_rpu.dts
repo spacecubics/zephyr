@@ -12,7 +12,8 @@
 	model = "SC-OBC Module V1 Versal Cortex-R5F";
 
 	chosen {
-		zephyr,sram = &tcm;
+		zephyr,sram = &ocm;
+		zephyr,flash = &tcm;
 		zephyr,console = &uart1;
 		zephyr,shell-uart = &uart1;
 		zephyr,ocm = &ocm;
@@ -23,6 +24,10 @@
 		clock-frequency = <200000000>;
 		#clock-cells = <0>;
 	};
+};
+
+&ocm {
+	status = "okay";
 };
 
 &uart1 {
