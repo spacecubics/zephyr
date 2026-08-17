@@ -8,16 +8,7 @@
 	soc: soc {
 		ocm: memory@fffc0000 {
 			compatible = "zephyr,memory-region";
-			/*
-			 * Versal OCM is 256 KiB at 0xfffc0000.
-			 *
-			 *   0xfffc0000 - 0xfffdffff: lower 128 KiB, exposed to Zephyr
-			 *   0xfffe0000 - 0xffffffff: upper 128 KiB, default TF-A BL31 location
-			 *
-			 * Keep the upper half out of the Zephyr memory region to avoid
-			 * overlapping with secure firmware.
-			 */
-			reg = <0xfffc0000 DT_SIZE_K(128)>;
+			reg = <0xfffc0000 DT_SIZE_K(256)>;
 			zephyr,memory-region = "OCM";
 			status = "disabled";
 		};
