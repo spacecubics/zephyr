@@ -25,7 +25,7 @@ extern const uint32_t __rom_region_mpu_size_bits;
  * - 0xFD000000 - 0xFDFFFFFF: FPS slaves (16MB, device)
  * - 0xFE000000 - 0xFEFFFFFF: Upper LPS slaves (16MB, device)
  * - 0xFF000000 - 0xFFFFFFFF: Lower LPS slaves, TCM, OCM (16MB, device)
- * - 0xFFFC0000 - 0xFFFDFFFF: OCM lower 128KB (cacheable - overlay)
+ * - 0xFFFC0000 - 0xFFFFFFFF: OCM (256KB, cacheable - overlay)
  */
 
 /*
@@ -152,14 +152,13 @@ static const struct arm_mpu_region mpu_regions[] = {
 			 DEVICE_SHAREABLE |
 			 NOT_EXEC}),
 
-	/* Region 3: OCM overlay - 128KB normal cacheable memory from 0xFFFC0000
-	 * This overlays the peripheral region and marks Zephyr-owned OCM as cacheable.
-	 * The upper 128KB is reserved by devicetree for TF-A BL31.
+	/* Region 3: OCM overlay - 256KB normal cacheable memory from 0xFFFC0000
+	 * This overlays the peripheral region and marks OCM as cacheable
 	 */
 	MPU_REGION_ENTRY(
 		"ocm",
 		0xFFFC0000,
-		REGION_128K,
+		REGION_256K,
 		{.rasr = FULL_ACCESS_Msk |
 			 NORMAL_OUTER_INNER_WRITE_BACK_WRITE_READ_ALLOCATE_NON_SHAREABLE}),
 
