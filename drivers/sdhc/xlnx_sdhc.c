@@ -7,7 +7,6 @@
 #define DT_DRV_COMPAT xlnx_versal_8_9a
 
 #include <stdio.h>
-#include <zephyr/cache.h>
 #include <zephyr/kernel.h>
 #include <zephyr/devicetree.h>
 #include <zephyr/drivers/sdhc.h>
@@ -27,12 +26,6 @@ LOG_MODULE_REGISTER(xlnx_sdhc, CONFIG_SD_LOG_LEVEL);
 	 XLNX_SDHC_EMMC_SLOT : XLNX_SDHC_SD_SLOT)
 
 #define XLNX_SDHC_GET_HOST_PROP_BIT(cap, b) ((uint8_t)((cap & (CHECK_BITS(b))) >> b))
-
-#if defined(CONFIG_DCACHE_LINE_SIZE) && (CONFIG_DCACHE_LINE_SIZE > 0)
-#define XLNX_SDHC_ADMA2_DESC_ALIGN CONFIG_DCACHE_LINE_SIZE
-#else
-#define XLNX_SDHC_ADMA2_DESC_ALIGN 4
-#endif
 
 /**
  * @brief ADMA2 descriptor table structure.
@@ -64,8 +57,7 @@ struct sd_data {
 	/**< Maximum input clock supported by HC */
 	uint32_t maxclock;
 	/**< ADMA descriptor table */
-	adma2_descriptor adma2_descrtbl[MAX(1, CONFIG_HOST_ADMA2_DESC_SIZE)]
-		__aligned(XLNX_SDHC_ADMA2_DESC_ALIGN);
+	adma2_descriptor adma2_descrtbl[MAX(1, CONFIG_HOST_ADMA2_DESC_SIZE)];
 };
 
 /**
@@ -181,36 +173,6 @@ static void xlnx_sdhc_clear_intr(volatile struct reg_base *reg)
 
 /**
  * @brief
- * Flush a data cache range for SDHC DMA
- */
-static int xlnx_sdhc_cache_flush_range(void *addr, size_t size)
-{
-#if defined(CONFIG_CACHE_MANAGEMENT) && defined(CONFIG_DCACHE)
-	return sys_cache_data_flush_range(addr, size);
-#else
-	ARG_UNUSED(addr);
-	ARG_UNUSED(size);
-	return 0;
-#endif
-}
-
-/**
- * @brief
- * Invalidate a data cache range for SDHC DMA
- */
-static int xlnx_sdhc_cache_invd_range(void *addr, size_t size)
-{
-#if defined(CONFIG_CACHE_MANAGEMENT) && defined(CONFIG_DCACHE)
-	return sys_cache_data_invd_range(addr, size);
-#else
-	ARG_UNUSED(addr);
-	ARG_UNUSED(size);
-	return 0;
-#endif
-}
-
-/**
- * @brief
  * Setup ADMA2 descriptor table for data transfer
  */
 static int xlnx_sdhc_setup_adma(const struct device *dev, const struct sdhc_data *data)
@@ -220,7 +182,6 @@ static int xlnx_sdhc_setup_adma(const struct device *dev, const struct sdhc_data
 	uint32_t adma_table;
 	uint32_t descnum;
 	const uint8_t *buff = data->data;
-	size_t desc_size;
 	int ret = 0;
 
 	if ((data->block_size * data->blocks) < XLNX_SDHC_DESC_MAX_LENGTH) {
@@ -252,20 +213,6 @@ static int xlnx_sdhc_setup_adma(const struct device *dev, const struct sdhc_data
 		XLNX_SDHC_DESC_END | XLNX_SDHC_DESC_VALID;
 	dev_data->adma2_descrtbl[adma_table - 1U].length =
 		((data->blocks * data->block_size) - (descnum * XLNX_SDHC_DESC_MAX_LENGTH));
-
-	/*
-	 * The SDHC reads the ADMA2 descriptor table through DMA.
-	 * If the table lives in cacheable memory, make sure all
-	 * descriptor writes are visible to the controller before
-	 * programming ADMA_SYS_ADDR.
-	 */
-	desc_size = adma_table * sizeof(dev_data->adma2_descrtbl[0]);
-	ret = xlnx_sdhc_cache_flush_range(dev_data->adma2_descrtbl, desc_size);
-	if (ret != 0) {
-		LOG_ERR("Failed to flush ADMA descriptor table: ret=%d desc=%p size=%u",
-			ret, dev_data->adma2_descrtbl, (uint32_t)desc_size);
-		return ret;
-	}
 
 	reg->adma_sys_addr = ((uintptr_t)&(dev_data->adma2_descrtbl[0]) & ~(uintptr_t)0x0);
 
@@ -520,15 +467,11 @@ static int8_t xlnx_sdhc_xfr(const struct device *dev, struct sdhc_data *data)
  * @brief
  * Performs data and command transfer and check for transfer complete
  */
-static int xlnx_sdhc_transfer(const struct device *dev, struct sdhc_command *cmd,
+static int8_t xlnx_sdhc_transfer(const struct device *dev, struct sdhc_command *cmd,
 		struct sdhc_data *data)
 {
 	volatile struct reg_base *reg = (struct reg_base *)DEVICE_MMIO_GET(dev);
-	struct sd_data *dev_data = dev->data;
-	int ret = -EINVAL;
-	size_t data_len;
-	size_t cache_line_size;
-	bool read;
+	int8_t ret = -EINVAL;
 
 	/* Check command line is in use */
 	if ((reg->present_state & 1U) != 0U) {
@@ -539,41 +482,6 @@ static int xlnx_sdhc_transfer(const struct device *dev, struct sdhc_command *cmd
 	if (data != NULL) {
 		reg->block_size = data->block_size;
 		reg->block_count = data->blocks;
-		data_len = data->block_size * data->blocks;
-		read = (dev_data->transfermode & XLNX_SDHC_TM_DAT_DIR_SEL_MASK) != 0U;
-
-		cache_line_size = sys_cache_data_line_size_get();
-		if (read && (cache_line_size != 0U) &&
-		    (!IS_ALIGNED((uintptr_t)data->data, cache_line_size) ||
-		     !IS_ALIGNED(data_len, cache_line_size))) {
-			LOG_ERR("Read DMA buffer must be aligned to d-cache line size: "
-				"buf=%p len=%u line_size=%u",
-				data->data, (uint32_t)data_len,
-				(uint32_t)cache_line_size);
-			return -EINVAL;
-		}
-
-
-		/*
-		 * For read transfers, clean and invalidate the destination before
-		 * starting DMA, then invalidate it again before the CPU reads data
-		 * written by SDHC.
-		 * For write transfers, flush CPU-written data before SDHC reads it.
-		 */
-		if (read) {
-			ret = xlnx_sdhc_cache_flush_range(data->data, data_len);
-			if (ret == 0) {
-				ret = xlnx_sdhc_cache_invd_range(data->data, data_len);
-			}
-		} else {
-			ret = xlnx_sdhc_cache_flush_range(data->data, data_len);
-		}
-		if (ret != 0) {
-			LOG_ERR("DMA buffer cache maintenance failed before transfer: "
-				"ret=%d buf=%p len=%u read=%u",
-				ret, data->data, (uint32_t)data_len, read);
-			return ret;
-		}
 
 		/* Setup ADMA2 if data is present */
 		ret = xlnx_sdhc_setup_adma(dev, data);
@@ -591,16 +499,6 @@ static int xlnx_sdhc_transfer(const struct device *dev, struct sdhc_command *cmd
 		ret = xlnx_sdhc_xfr(dev, data);
 		if (ret != 0) {
 			return ret;
-		}
-
-		if (read) {
-			ret = xlnx_sdhc_cache_invd_range(data->data, data_len);
-			if (ret != 0) {
-				LOG_ERR("DMA buffer invalidate failed after transfer: "
-					"ret=%d buf=%p len=%u",
-					ret, data->data, (uint32_t)data_len);
-				return ret;
-			}
 		}
 	} else {
 		/* Send command and check for command complete */
