@@ -18,12 +18,6 @@
 		zephyr,shell-uart = &uart1;
 		zephyr,ocm = &ocm;
 	};
-
-	sdhci_ref_clk: sdhci-ref-clk {
-		compatible = "fixed-clock";
-		clock-frequency = <200000000>;
-		#clock-cells = <0>;
-	};
 };
 
 &ocm {
@@ -49,15 +43,4 @@
 &ttc0 {
 	status = "okay";
 	clock-frequency = <DT_FREQ_M(150)>;
-};
-
-&sdhci1 {
-	clocks = <&sdhci_ref_clk>;
-	status = "disabled";
-
-	mmc {
-		compatible = "zephyr,mmc-disk";
-		bus-width = <8>;
-		disk-name = "mmc0";
-	};
 };
