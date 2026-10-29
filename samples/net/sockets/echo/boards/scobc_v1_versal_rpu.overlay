@@ -24,3 +24,11 @@
 &gem1 {
 	status = "okay";
 };
+
+&gem1_mdio {
+	status = "okay";
+};
+
+&dev_board_phy {
+	status = "okay";
+};

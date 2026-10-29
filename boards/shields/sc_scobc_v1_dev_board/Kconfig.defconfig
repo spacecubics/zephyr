@@ -3,7 +3,7 @@
 
 if SHIELD_SC_SCOBC_V1_DEV_BOARD
 
-configdefault NET_L2_ETHERNET
-	default y
+configdefault ETH_DRIVER
+	default y if DT_HAS_XLNX_GEM_ENABLED
 
 endif # SHIELD_SC_SCOBC_V1_DEV_BOARD

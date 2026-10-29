@@ -4,20 +4,23 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <zephyr/dt-bindings/ethernet/xlnx_gem.h>
-
-/*
- * GEM1 is connected to a TI DP83867 PHY at MDIO address 1. The GEM driver's
- * PHY management does not support this PHY, so run a fixed 1 Gbit/s
- * full-duplex link and rely on the PHY's straps for its configuration,
- * including the RGMII TX/RX internal delays (1.75 ns).
- */
+/* GEM1 is connected to a TI DP83867 PHY at MDIO address 1. */
 &gem1 {
-	status = "disabled";
 	/* GEM1_REF_CTRL is sourced from the RPLL (750 MHz) */
 	clock-frequency = <DT_FREQ_M(750)>;
-	/* LPD_LSBUS_CLK is 150 MHz */
-	mdc-divider = <XLNX_GEM_MDC_DIVIDER_64>;
-	link-speed = <XLNX_GEM_LINK_SPEED_1GBIT>;
+	phy-handle = <&dev_board_phy>;
 	local-mac-address = [02 00 00 00 00 01];
+	status = "disabled";
+};
+
+&gem1_mdio {
+	dev_board_phy: ethernet-phy@1 {
+		compatible = "ti,dp83867";
+		reg = <1>;
+		ti,interface-type = "rgmii-id";
+		/* Match the board's 1.75 ns RX/TX delay straps. */
+		ti,rx-internal-delay = <6>;
+		ti,tx-internal-delay = <6>;
+		status = "disabled";
+	};
 };
